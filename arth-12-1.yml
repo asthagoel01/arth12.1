@@ -1,0 +1,79 @@
+- hosts: all
+  tasks:
+  - name: "Creating Mountpoint for yum"
+    file:
+      state: directory
+      path: "/dvd"
+
+  - name: "Mounting dvd"
+    mount:
+      state: mounted
+      src: /dev/cdrom
+      path: "/dvd"
+      fstype: iso9660
+
+  - name: "Configuring yum for AppStream"
+    yum_repository:
+      baseurl: /dvd/AppStream
+      description: path1
+      file: myfile
+      name: Appstream
+      gpgcheck: no
+
+  - name: "Configuring yum for BaseOS"
+    yum_repository:
+      baseurl: /dvd/BaseOS
+      description: path2
+      file: myfile
+      name: BaseOS
+      gpgcheck: no
+
+- hosts: Backend
+  tasks:
+
+  - name: "Stopping firewall"
+    service:
+      name: firewalld
+      state: stopped
+
+  - name: "Installing Apache httpd Software"
+    package:
+      name: "httpd"
+      state: present
+
+  - name: "Configuring the Web Pages"
+    copy:
+      src: page.html
+      dest: "/var/www/html"
+  - name: "Starting the web service"
+    service:
+      name: "httpd"
+      state: started
+
+- hosts: Frontend
+  tasks:
+  
+  - name: "Stopping firewall"
+    service:
+      name: firewalld
+      state: stopped
+
+  - name: "Installing Software for LoadBalancer"
+    package:
+      name: "haproxy"
+      state: present
+
+  - name: "Specify Back NodesIP into the LoadBalacer Configuration"
+    blockinfile:
+      path: "/etc/haproxy/haproxy.cfg"
+      insertafter: 'server  app4 127.0.0.1:5004 check' 
+      block: |
+             {% for i in groups['Backend'] %}
+             server app{{ loop.index }} {{ i }}:80 check
+             {% endfor %}
+
+  - name: "Starting the lb service"
+    service:
+     name: "haproxy"
+     state: started
+ 
